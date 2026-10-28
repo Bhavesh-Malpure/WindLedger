@@ -1,4 +1,4 @@
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'https://windledger-backend.onrender.com/api';
 
 export async function fetchHealth() {
   const res = await fetch(`${API_BASE_URL}/health`);
