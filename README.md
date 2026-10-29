@@ -1,262 +1,409 @@
-# UK National Wind Generation Forecast & Day-Ahead Procurement Analysis Portal
+# WindLedger --- UK Wind Forecast & Day-Ahead Procurement Analysis
 
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/Frontend-React%2018%20%2B%20Vite-61DAFB.svg)](https://reactjs.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind%20CSS-38B2AC.svg)](https://tailwindcss.com/)
-[![Elexon BMRS](https://img.shields.io/badge/Data-Elexon%20BMRS-1E3A8A.svg)](https://bmrs.elexon.co.uk/)
-[![Tests](https://img.shields.io/badge/Tests-30%20Passing-emerald.svg)](backend/tests/)
+[![React](https://img.shields.io/badge/Frontend-React%2018%20%2B%20Vite-61DAFB.svg)](https://react.dev/)
+[![Tailwind
+CSS](https://img.shields.io/badge/Styling-Tailwind%20CSS-38B2AC.svg)](https://tailwindcss.com/)
+[![Data](https://img.shields.io/badge/Data-Elexon%20BMRS-1E3A8A.svg)](https://bmrs.elexon.co.uk/)
 
-An operational analytics dashboard and decision-support portal engineered for a UK electricity utility's day-ahead power procurement desk. The system evaluates the predictive accuracy of national wind generation forecasts against outturn generation for delivery dates throughout **January 2026**, strictly enforcing the day-ahead auction cutoff to eliminate look-ahead bias (data leakage).
+WindLedger is a web-based analysis portal for comparing UK national
+wind-generation forecasts with actual generation for January 2026
+delivery dates. It helps users review forecast error, forecast
+publication cutoffs, and forecast-vintage changes in a repeatable
+workflow.
 
----
+The project contains a React/Vite frontend and a Python/FastAPI backend.
+The backend is designed to retrieve actuals and forecasts from the
+Elexon BMRS API and provides configurable fixture-mode behavior for
+controlled testing.
 
-## Deployment URL (Placeholder)
-> [!IMPORTANT]
-> **Hosted Deployment URL**: `[USER TO CONFIGURE AFTER VERCEL / HEROKU / CONTAINER DEPLOYMENT]`  
-> *(Per assignment instructions, Docker containerization and remote cloud deployment are handled by the user. This repository contains the complete, verified local frontend and backend implementation ready for deployment.)*
+## Deployed application
 
----
+-   **Frontend:** https://windledger-frontend.onrender.com
+-   **Backend health endpoint:**
+    https://windledger-backend.onrender.com/api/health
+-   **Backend API documentation:**
+    https://windledger-backend.onrender.com/docs
 
-## 1. Product Overview & Key Features
+The health endpoint confirms that the API process responds; it does
+**not** independently verify upstream Elexon connectivity. Check the
+analysis response's source and warning fields when interpreting results.
 
-### The Problem
-UK electricity suppliers must balance customer electricity demand against generation across 48 half-hour settlement periods every day. Decisions to procure power from the day-ahead wholesale market (or dispatch thermal generation) must be finalized one day prior to delivery ($D-1$) before market auction closure (typically 11:00 or 12:00 GMT/UTC). Because wind generation is weather-dependent, procurement traders must rely on forecasts. Looking at forecasts in hindsight often creates false confidence if those forecasts were published *after* the auction bids were submitted.
+## Features
 
-### Key Capabilities
-- **Strict Day-Ahead Cutoff Enforcement**: Evaluates forecasts that were *actually available* to traders prior to the day-ahead auction gate closure (default 11:00 UTC on $D-1$). Forecasts published after the cutoff are rejected to prevent look-ahead bias.
-- **Configurable Cutoff Gate**: Allows trading desks to simulate alternative auction deadlines (e.g. 10:00 UTC, 12:00 UTC, or custom cutoff hours).
-- **Zero-Safe Energy Metrics**: Computes Mean Absolute Error (MAE in MW), Root Mean Square Error (RMSE in MW), Bias/Mean Error (MW), and Weighted Absolute Percentage Error (WAPE %). Avoids fragile percentage errors (like MAPE) that break when wind generation drops to zero.
-- **Interactive Operational Time Series**: High-fidelity Recharts visualization comparing actual generation vs latest forecast with delta tooltips and hourly over/under procurement bars.
-- **Forecast Vintage Evolution**: Compares forecasts published across $D-2$ and $D-1$ to visualize how forecast runs converged toward the auction gate closure.
-- **Interval Ledger & CSV Export**: Granular 30-minute settlement period ledger with search filtering and direct one-click CSV export for trading analysts.
-- **Data Transparency & Integrity**: Real-time display of upstream Elexon data source, publication timestamps, matched/unmatched intervals, and clear data limitations.
+-   **Day-ahead cutoff handling:** Select a delivery date and cutoff
+    settings. The backend selects forecast vintages eligible before the
+    configured cutoff to help prevent look-ahead bias.
+-   **Configurable analysis settings:** Supports cutoff-hour and
+    cutoff-day-offset parameters, plus interval-alignment modes.
+-   **Forecast accuracy metrics:** Reports metrics including MAE, RMSE,
+    bias, WAPE, peak absolute error, interval coverage, and
+    actual/forecast energy volumes when available.
+-   **Actual-versus-forecast visualization:** Displays a time-series
+    comparison of actual generation and forecast generation.
+-   **Forecast-vintage comparison:** Supports reviewing forecasts
+    published at different times before the cutoff.
+-   **Settlement-interval ledger:** Presents interval-level comparison
+    data; CSV export is available through the frontend when exposed by
+    the current UI.
+-   **Data-source transparency:** The API response can report
+    data-source information, fixture status, and warnings so users can
+    distinguish analysis modes.
+-   **API endpoints:** Provides endpoints for available dates, analysis,
+    and forecast-vintage comparison.
 
----
+## Architecture
 
-## 2. Complete File and Folder Guide
-
+``` text
+Browser
+  |
+  v
+React + Vite frontend (Render Static Site)
+  |
+  | HTTPS requests to /api endpoints
+  v
+FastAPI backend (Render web service / Docker)
+  |
+  +--> Elexon BMRS API clients
+  |      +--> FUELHH actual generation
+  |      +--> WINDFOR forecast generation
+  |
+  +--> Cutoff and vintage selection
+  +--> Time-series alignment
+  +--> Metrics calculation
+  +--> JSON API response
 ```
-g:/GridBricks Assignment/
+
+The frontend and backend are deployed separately. The frontend's API
+service points to the deployed backend URL, and the backend CORS
+configuration must allow the frontend origin.
+
+## Repository structure
+
+``` text
+.
 ├── backend/
 │   ├── app/
 │   │   ├── api/
 │   │   │   └── routes/
-│   │   │       ├── analysis.py        # GET /api/analysis endpoint
-│   │   │       ├── dates.py           # GET /api/dates endpoint (January 2026)
-│   │   │       └── vintages.py        # GET /api/vintages/compare endpoint
+│   │   │       ├── analysis.py          # Analysis API route
+│   │   │       ├── dates.py             # Available delivery dates route
+│   │   │       └── vintages.py          # Forecast-vintage comparison route
 │   │   ├── clients/
-│   │   │   ├── fuelhh_client.py       # Elexon FUELHH actuals client with retry & fallback
-│   │   │   └── windfor_client.py      # Elexon WINDFOR forecast client with stream query
+│   │   │   ├── fuelhh_client.py         # Actual-generation API client
+│   │   │   └── windfor_client.py        # Forecast-generation API client
 │   │   ├── core/
-│   │   │   ├── config.py              # Pydantic Settings and environment configuration
-│   │   │   └── errors.py              # Custom HTTP domain exceptions
+│   │   │   ├── config.py                # Settings and environment configuration
+│   │   │   └── errors.py                # Domain/API error handling
 │   │   ├── models/
-│   │   │   └── schemas.py             # Pydantic typed request & response schemas
+│   │   │   └── schemas.py               # Typed request/response models
 │   │   ├── services/
-│   │   │   ├── alignment_engine.py    # Time-series alignment (exact & 48 HH expanded)
-│   │   │   ├── cutoff_engine.py       # Cutoff enforcement & vintage selection (zero leakage)
-│   │   │   ├── metrics.py             # MAE, RMSE, Bias, WAPE, Peak Error, MWh volumes
-│   │   │   └── procurement_service.py # Orchestrator coordinating clients & business logic
+│   │   │   ├── alignment_engine.py      # Interval alignment
+│   │   │   ├── cutoff_engine.py         # Cutoff and eligible-vintage selection
+│   │   │   ├── metrics.py               # Forecast evaluation metrics
+│   │   │   └── procurement_service.py   # Analysis orchestration
 │   │   ├── utils/
-│   │   │   └── timezone.py            # ISO8601 UTC parsing, formatting, and cutoff math
-│   │   └── main.py                    # FastAPI application, CORS, and health route
-│   ├── fixtures/
-│   │   ├── fuelhh_2026-01-01.json     # Verified real Elexon FUELHH fixture (month start)
-│   │   ├── fuelhh_2026-01-15.json     # Verified real Elexon FUELHH fixture (benchmark)
-│   │   ├── windfor_2026-01-01.json    # Verified real Elexon WINDFOR fixture (month start)
-│   │   └── windfor_2026-01-15.json    # Verified real Elexon WINDFOR fixture (benchmark)
-│   ├── tests/
-│   │   ├── conftest.py                # Pytest configuration and sys.path setup
-│   │   ├── test_api_routes.py         # Route integration tests for /api endpoints
-│   │   ├── test_cutoff_and_alignment.py # Cutoff boundary and leakage tests
-│   │   ├── test_fuelhh_client.py      # FUELHH parsing, deduplication, and fixture tests
-│   │   ├── test_health.py             # Health check endpoint test
-│   │   ├── test_metrics.py            # Analytical tests (MAE, RMSE, Bias, WAPE, zero-safe)
-│   │   └── test_windfor_client.py     # WINDFOR stream query and vintage tests
-│   └── requirements.txt               # Python dependencies
+│   │   │   └── timezone.py              # UTC/time handling helpers
+│   │   └── main.py                      # FastAPI app, CORS and health endpoint
+│   ├── fixtures/                        # Fixture datasets used in configured test/fallback modes
+│   ├── tests/                            # Backend unit and integration tests
+│   ├── Dockerfile                        # Backend container definition
+│   └── requirements.txt                 # Python dependencies
 ├── frontend/
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── ActualVsForecastChart.jsx # Interactive actual vs forecast line chart
-│   │   │   ├── ControlBar.jsx            # Date selector, cutoff hour, resolution controls
-│   │   │   ├── ErrorAnalysisChart.jsx    # Hourly over/under error distribution bar chart
-│   │   │   ├── Header.jsx                # Branding, live status badges, guide trigger
-│   │   │   ├── IntervalTable.jsx         # 48-period settlement table with CSV export
-│   │   │   ├── MetricCards.jsx           # MAE, RMSE, Bias, WAPE, Coverage summary cards
-│   │   │   ├── OperationalContext.jsx    # Domain explanation and methodology modal
-│   │   │   └── VintageEvolutionView.jsx  # Multi-vintage comparison chart & log
+│   │   ├── components/                  # Dashboard and chart components
 │   │   ├── services/
-│   │   │   └── api.js                    # Fetch client communicating with backend /api
-│   │   ├── App.jsx                       # Main application shell and state management
-│   │   ├── index.css                     # Tailwind CSS styles and dark mode theme
-│   │   └── main.jsx                      # React root entrypoint
+│   │   │   └── api.js                   # Frontend-to-backend API client
+│   │   ├── App.jsx                       # Main application and UI state
+│   │   ├── index.css                     # Global styles
+│   │   └── main.jsx                      # React entry point
 │   ├── index.html
-│   ├── package.json                      # Frontend dependencies
+│   ├── package.json                     # Frontend scripts and dependencies
 │   ├── postcss.config.js
 │   ├── tailwind.config.js
-│   └── vite.config.js                    # Vite configuration with /api reverse proxy
+│   └── vite.config.js                   # Vite development configuration
 ├── docs/
-│   ├── progress.md                       # Milestone tracking from M0 to M10
-│   ├── technical_design.md               # Architecture, formulas, and schema assumptions
-│   └── video_audio_script.md             # Complete audio script for video demo (Part 1 & 2)
-├── .env.example                          # Example environment configuration
-├── .gitignore                            # Git ignore rules for Python, Node, OS files
-└── README.md                             # Complete project documentation (this document)
+│   ├── progress.md                      # Development milestone notes
+│   ├── technical_design.md              # Technical design and methodology
+│   └── video_audio_script.md            # Demo/technical walkthrough script
+├── .env.example                         # Example environment settings, if included
+├── .gitignore
+└── README.md
 ```
 
----
+> The tree describes the main application files. Exact contents may vary
+> slightly as the project evolves.
 
-## 3. Data Sources & January 2026 Scope
+## Data sources and scope
 
-All analysis is scoped strictly to UK national wind generation data from official **Elexon BMRS Insights API** endpoints:
-1. **Actual Wind Generation (`FUELHH/stream`)**:
-   - Filtered to `fuelType == "WIND"`.
-   - 48 half-hour settlement periods per delivery day.
-   - Values are in Megawatts (MW).
-   - [Elexon FUELHH Endpoint Documentation](https://bmrs.elexon.co.uk/api-documentation/endpoint/datasets/FUELHH/stream)
-2. **Forecast Wind Generation (`WINDFOR/stream`)**:
-   - Filtered by publication window (`publishDateTimeFrom`, `publishDateTimeTo`).
-   - Forecasts published periodically (every few hours) with delivery `startTime` and forecast `generation` (MW).
-   - [Elexon WINDFOR Endpoint Documentation](https://bmrs.elexon.co.uk/api-documentation/endpoint/datasets/WINDFOR/stream)
+The application is scoped to **January 1--31, 2026** delivery dates for
+UK national wind generation.
 
----
+1.  **Actual generation --- Elexon BMRS FUELHH**
+    -   Uses the FUELHH dataset and filters for wind generation.
+    -   Actual generation is represented in MW and is aligned with
+        delivery intervals.
+    -   [FUELHH stream
+        documentation](https://bmrs.elexon.co.uk/api-documentation/endpoint/datasets/FUELHH/stream)
+2.  **Forecast generation --- Elexon BMRS WINDFOR**
+    -   Uses the WINDFOR dataset and forecast publication timestamps.
+    -   Forecast vintage selection considers the configured day-ahead
+        cutoff.
+    -   [WINDFOR stream
+        documentation](https://bmrs.elexon.co.uk/api-documentation/endpoint/datasets/WINDFOR/stream)
 
-## 4. Local Setup & Startup Commands
+The application uses UTC for cutoff calculations. In the default
+configuration, the cutoff is 11:00 UTC on the day before delivery
+(`D-1`). This is an application default and should be checked against
+the market process being modelled before operational use.
+
+### Alignment and metrics
+
+The default `half_hourly_expanded` mode aligns hourly forecasts to
+half-hourly settlement intervals by applying each hourly forecast value
+to both half-hour periods in that hour. The `exact` mode supports
+exact-time matching where applicable.
+
+The analysis may include:
+
+-   **MAE (MW):** Mean absolute forecast error.
+-   **RMSE (MW):** Root mean squared error, which weights larger errors
+    more heavily.
+-   **Bias (MW):** Mean signed error; interpretation depends on the sign
+    convention returned by the API.
+-   **WAPE (%):** Weighted absolute percentage error, subject to the
+    API's zero-denominator handling.
+-   **Peak absolute error (MW):** Largest absolute interval error.
+-   **Coverage:** Matched intervals relative to expected intervals.
+-   **Energy volumes (MWh):** Actual and forecast volume totals when
+    supplied by the analysis response.
+
+Forecast accuracy is only one input to procurement decisions. Demand,
+market prices, interconnector flows, other generation, balancing costs,
+and risk limits are outside the scope of this wind-forecast comparison
+alone.
+
+## Run locally
 
 ### Prerequisites
-- **Python**: 3.10+ (tested on Python 3.12.4)
-- **Node.js**: v18+ (tested on Node v24.15.0)
-- **npm**: 10+ (tested on npm 11.12.1)
 
-### Backend Setup & Startup
-```powershell
-# 1. Open terminal and navigate to backend directory
+-   Python 3.10 or later
+-   Node.js 18 or later
+-   npm
+-   Git (optional, for cloning)
+
+### 1. Get the code
+
+``` bash
+git clone <YOUR_PUBLIC_REPOSITORY_URL>
+cd <REPOSITORY_DIRECTORY>
+```
+
+Replace the placeholders with the URL and directory name of the
+submitted public repository.
+
+### 2. Start the backend
+
+From the repository root:
+
+**Windows PowerShell / Command Prompt**
+
+``` powershell
 cd backend
+python -m venv .venv
+# PowerShell:
+.\.venv\Scripts\Activate.ps1
+# Command Prompt:
+.\.venv\Scripts\activate.bat
 
-# 2. Install Python dependencies
-pip install -r requirements.txt
-
-# 3. Start the FastAPI development server
+python -m pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-*Backend API will be running at `http://localhost:8000`.*  
-*Interactive OpenAPI Swagger UI: `http://localhost:8000/docs`.*
 
-### Frontend Setup & Startup
-```powershell
-# 1. Open a second terminal and navigate to frontend directory
+The backend is available at `http://localhost:8000`. Interactive API
+documentation is at `http://localhost:8000/docs`.
+
+If activation is restricted by PowerShell policy, use Command Prompt or
+run the Python commands using the virtual environment's interpreter
+directly.
+
+### 3. Start the frontend
+
+Open a second terminal from the repository root:
+
+``` bash
 cd frontend
-
-# 2. Install npm dependencies
 npm install
-
-# 3. Start the Vite development server
 npm run dev
 ```
-*Frontend application will be running at `http://localhost:5173`.*  
-*(Vite proxies all `/api` requests to `http://127.0.0.1:8000` automatically).*
 
----
+Vite normally serves the frontend at `http://localhost:5173`.
 
-## 5. API Endpoints Reference
+For local development, ensure the frontend API configuration targets the
+local backend and that the backend CORS origins include the local
+frontend origin. The deployed frontend uses the deployed backend URL, so
+local and deployed API settings may differ.
 
-### 1. `GET /api/health`
-Health check providing server status, environment, and upstream Elexon reachability.
-- **Response**: `{"status": "ok", "version": "1.0.0", "upstream_elexon_status": "reachable", ...}`
+## Configuration
 
-### 2. `GET /api/dates`
-Returns all 31 delivery dates in January 2026 with availability flags.
-- **Response**: `[{"date_str": "2026-01-01", "has_actuals": true, "has_forecasts": true, ...}, ...]`
+Backend settings are defined in `backend/app/core/config.py` and can be
+overridden by environment variables supported by Pydantic Settings. The
+backend also reads a `.env` file when present.
 
-### 3. `GET /api/analysis`
-Performs day-ahead forecast verification for a selected January 2026 delivery date.
-- **Query Parameters**:
-  - `delivery_date` (required, string, `YYYY-MM-DD`): Target delivery date in January 2026.
-  - `cutoff_hour` (optional, int, 0-23, default `11`): Day-ahead auction gate closure hour in UTC.
-  - `cutoff_day_offset` (optional, int, default `1`): Days prior to delivery for cutoff (1 = $D-1$).
-  - `alignment_mode` (optional, string, default `'half_hourly_expanded'`): `'half_hourly_expanded'` (48 HH periods) or `'exact'` (24 hourly periods).
-  - `force_fixture` (optional, bool, default `false`): Force local verified fixture data.
-- **Response**:
-  ```json
-  {
-    "delivery_date": "2026-01-15",
-    "decision_cutoff_utc": "2026-01-14T11:00:00Z",
-    "cutoff_hour_utc": 11,
-    "selected_vintage_publish_time": "2026-01-14T09:30:00Z",
-    "data_source": "Elexon BMRS (FUELHH & WINDFOR)",
-    "metrics": {
-      "mae_mw": 1110.25,
-      "rmse_mw": 1228.54,
-      "bias_mw": 1110.25,
-      "wape_percent": 10.51,
-      "peak_absolute_error_mw": 2386.0,
-      "matched_intervals": 48,
-      "total_expected_intervals": 48,
-      "coverage_percent": 100.0,
-      "total_actual_volume_mwh": 253626.0,
-      "total_forecast_volume_mwh": 280272.0
-    },
-    "intervals": [...],
-    "available_vintages": [...]
-  }
-  ```
+Relevant settings include:
 
-### 4. `GET /api/vintages/compare`
-Retrieves time series for all forecast vintages published prior to cutoff covering the delivery day.
-- **Query Parameters**: `delivery_date`, `cutoff_hour`, `force_fixture`.
+  -----------------------------------------------------------------------
+  Setting                             Purpose
+  ----------------------------------- -----------------------------------
+  `ELEXON_API_BASE_URL`               Base URL for the Elexon BMRS API
 
----
+  `ENVIRONMENT`                       Application environment label
 
-## 6. Automated Test Suite & Verification Results
+  `CORS_ORIGINS`                      Allowed browser origins, according
+                                      to the settings format
 
-The backend contains 23 automated tests verifying cutoff logic, leakage prevention, vintage selection, zero-safe metrics, client parsing, and API route contracts:
+  `HTTP_TIMEOUT_SECONDS`              Upstream HTTP timeout
 
-```powershell
+  `MAX_RETRIES`                       Retry limit for upstream requests
+
+  `FORCE_FIXTURE_MODE`                Forces fixture data when enabled
+
+  `ALLOW_FIXTURE_FALLBACK`            Controls whether fallback to
+                                      fixtures is permitted
+  -----------------------------------------------------------------------
+
+Do not commit API credentials, secrets, or environment-specific private
+values. If fixture data is returned, treat it as test/demo data and do
+not describe it as live upstream data.
+
+## API reference
+
+The base path is `/api`.
+
+### `GET /api/health`
+
+Returns application health information, version, environment, and
+fixture-mode configuration. The endpoint does not itself call Elexon to
+test upstream connectivity.
+
+Example:
+
+``` bash
+curl https://windledger-backend.onrender.com/api/health
+```
+
+### `GET /api/dates`
+
+Returns the delivery dates available to the application, with
+actuals/forecast availability flags where supplied.
+
+Example:
+
+``` bash
+curl https://windledger-backend.onrender.com/api/dates
+```
+
+### `GET /api/analysis`
+
+Runs forecast-versus-actual analysis for a delivery date.
+
+Common query parameters:
+
+  -----------------------------------------------------------------------
+  Parameter                           Description
+  ----------------------------------- -----------------------------------
+  `delivery_date`                     Required date in `YYYY-MM-DD`
+                                      format; supported scope is January
+                                      2026
+
+  `cutoff_hour`                       Cutoff hour in UTC; default is `11`
+
+  `cutoff_day_offset`                 Days before delivery for the
+                                      cutoff; default is `1`
+
+  `alignment_mode`                    `half_hourly_expanded` or `exact`,
+                                      depending on supported route
+                                      validation
+
+  `force_fixture`                     Optional switch to force fixture
+                                      data for a request, if enabled by
+                                      the API
+  -----------------------------------------------------------------------
+
+Example:
+
+``` bash
+curl "https://windledger-backend.onrender.com/api/analysis?delivery_date=2026-01-15&cutoff_hour=11&cutoff_day_offset=1&alignment_mode=half_hourly_expanded"
+```
+
+Inspect the returned data-source, fixture, warning, coverage, and metric
+fields before interpreting results.
+
+### `GET /api/vintages/compare`
+
+Compares eligible forecast vintages for a delivery date, subject to the
+cutoff and route parameters.
+
+Example:
+
+``` bash
+curl "https://windledger-backend.onrender.com/api/vintages/compare?delivery_date=2026-01-15&cutoff_hour=11"
+```
+
+For the full request and response schemas, see the deployed [OpenAPI
+documentation](https://windledger-backend.onrender.com/docs).
+
+## Tests
+
+The backend test suite covers areas such as API routes, cutoff and
+alignment behavior, client parsing, fixture handling, and metric
+calculations.
+
+Run the tests from the repository root:
+
+``` bash
 cd backend
+python -m pip install -r requirements.txt
 pytest -v
 ```
 
-### Verified Test Results
-```
-tests/test_api_routes.py::test_get_dates_endpoint PASSED                 [  4%]
-tests/test_api_routes.py::test_get_analysis_january_15_fixture PASSED    [  8%]
-tests/test_api_routes.py::test_get_analysis_out_of_scope_date PASSED     [ 13%]
-tests/test_api_routes.py::test_get_analysis_invalid_cutoff_hour PASSED   [ 17%]
-tests/test_api_routes.py::test_compare_vintages_endpoint PASSED          [ 21%]
-tests/test_cutoff_and_alignment.py::test_cutoff_computation_month_boundary PASSED [ 26%]
-tests/test_cutoff_and_alignment.py::test_cutoff_strict_leakage_prevention PASSED [ 30%]
-tests/test_cutoff_and_alignment.py::test_select_latest_eligible_forecast PASSED [ 34%]
-tests/test_cutoff_and_alignment.py::test_alignment_zero_actual_avoid_zero_division PASSED [ 39%]
-tests/test_cutoff_and_alignment.py::test_alignment_missing_handling PASSED [ 43%]
-tests/test_fuelhh_client.py::test_fuelhh_parse_filters_wind_only PASSED  [ 47%]
-tests/test_fuelhh_client.py::test_fuelhh_deduplication_keeps_latest_publish_time PASSED [ 52%]
-tests/test_fuelhh_client.py::test_fuelhh_skips_malformed_records PASSED  [ 56%]
-tests/test_fuelhh_client.py::test_fuelhh_fixture_loading PASSED          [ 60%]
-tests/test_health.py::test_health_endpoint PASSED                        [ 65%]
-tests/test_metrics.py::test_metrics_hand_calculated_values PASSED        [ 69%]
-tests/test_metrics.py::test_metrics_empty_matched_intervals PASSED       [ 73%]
-tests/test_metrics.py::test_metrics_zero_actual_generation PASSED        [ 78%]
-tests/test_metrics.py::test_metrics_missing_intervals_not_treated_as_zero PASSED [ 82%]
-tests/test_windfor_client.py::test_windfor_parse_and_validate PASSED     [ 86%]
-tests/test_windfor_client.py::test_windfor_deduplication PASSED          [ 91%]
-tests/test_windfor_client.py::test_windfor_skips_malformed_records PASSED [ 95%]
-tests/test_windfor_client.py::test_windfor_fixture_loading PASSED        [100%]
+Use the test output from your current checkout as the source of truth
+for the number of tests passing.
 
-======================== 23 passed in 1.07s ========================
-```
+## Deployment
 
----
+The submitted deployment currently uses Render:
 
-## 7. Assumptions & Limitations
+-   **Frontend:** Render Static Site, built from the `frontend`
+    directory.
+-   **Backend:** Render web service built from the `backend` directory's
+    Dockerfile.
+-   **Frontend API configuration:** `frontend/src/services/api.js`.
+-   **Backend CORS configuration:** `backend/app/core/config.py` and the
+    middleware setup in `backend/app/main.py`.
 
-1. **Strict January 2026 Scope**: Scoped exclusively to UK national wind actuals (`FUELHH`) and wind forecasts (`WINDFOR`) from Elexon for January 2026 delivery dates. Requests for dates outside January 2026 return HTTP 400.
-2. **Default Auction Cutoff**: Defaulted to **11:00 UTC on $D-1$** based on standard UK day-ahead power auction timelines (e.g. EPEX SPOT / Nord Pool). Desks can configure this cutoff in the UI (e.g., 10:00 or 12:00 UTC).
-3. **Month Boundary Handling**: For delivery on `2026-01-01`, the day-ahead cutoff is `2025-12-31T11:00:00Z`. The system queries forecasts published in late December 2025 that target January 1st, 2026.
-4. **Timezones**: Handled strictly in UTC (Greenwich Mean Time). In January, the UK operates on GMT (UTC+0).
-5. **Resolution & Alignment**: Actual generation is half-hourly (48 settlement periods); stream forecasts are hourly. In default `half_hourly_expanded` mode, each hourly forecast applies to both 30-min settlement periods in that hour. Exact hourly matching is also supported via a UI toggle.
-6. **Operational Scope Caveat**: This portal verifies renewable forecast accuracy. Total day-ahead power procurement also depends on consumer demand profiles, interconnector schedules, thermal generator minimum stable generation limits, and balancing cash-out rules.
+For a new deployment, configure the frontend and backend services to
+match their respective build settings, set the correct backend API URL
+in the frontend, and allow the deployed frontend origin in backend CORS
+settings. After deployment, verify the frontend, backend health
+endpoint, and an actual analysis request independently.
 
----
+## Demo video
 
-## 8. AI Tool Disclosure
-In accordance with assignment instructions, AI assistance (Google Antigravity with Gemini 3.8 Flash High) was utilized during the development process for system architecture design, test suite authoring, component styling, and technical documentation drafting. All code, analytical algorithms, and API contracts were tested, verified, and benchmarked against live Elexon BMRS services.
+Add the **unlisted YouTube demo link** here after recording and
+uploading the final video. The recording must be no longer than 10
+minutes and should contain: 1. A customer-facing portal and analysis
+overview (maximum 5 minutes). 2. A technical walkthrough covering
+architecture, design, analysis logic, codebase, and development
+practices (maximum 5 minutes).
+
+Do not submit this README with the demo-link placeholder still present;
+replace this section with the actual unlisted video URL before
+submission.
+
+## AI assistance disclosure
+
+AI-assisted tools were used during development and documentation. Review
+the final implementation and test results before submission, and ensure
+this disclosure accurately reflects the tools and contributions used for
+this project.
